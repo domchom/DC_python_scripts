@@ -1,3 +1,5 @@
+#note for dom: make sure to set the env to 3.9.7 ('base': conda)
+
 import glob,os
 import sys
 import math                   
@@ -7,32 +9,107 @@ import scipy
 import skimage.io as skio
 from skimage.morphology import disk, binary_erosion, binary_dilation, binary_opening, binary_closing, remove_small_objects
 from skimage.restoration import rolling_ball 
-from skimage.filters import gaussian
 from skimage.measure import label
+from skimage.filters import gaussian
 import tkinter as tk
 from tkinter import Tk
 from tkinter import ttk
 import pyclesperanto_prototype as cle
 
-"""This script calculates the average flouresence over time for provided movies. The movies should only be one channel. It will
-calc the avg flour of each frame, and give raw, normalized (-avg raw value of the first frames (no stimulation)), and rolling average 
-where the number of frames averaged is provided by the user (the pre-stim frames are not rolled, to allow for obvious stimulation 
-time). User must also prvoide the number of pre-stimulation frames.
-
-You can also change whether the masks for each movie are plotted and whether the raw, normalized, or rolling_norm data is plotted
-below"""
-
-os.chdir("/Users/domchom/Desktop/Python_Learning/Projects/Avg_flour_over_time_filtered/test_image_process_datasets") #paste the pathname for your movies of interest
-roll_avg_frames = 5 #how many frames to average together (1 = just raw data data, no averaging)
-pre_stim_frames = 10
-what_to_plot =  'normalized' #either 'raw', 'normalized', or 'rolling_norm'
-
 ######################################
-########## ERRORS ######## ###########
+################# GUI ################
 ######################################
 
-if roll_avg_frames < 1: #error message if the user tries to average less than one frame
-    print("You cannot average less than 1 frame!")
+#store the path name outside of the tk thingy 
+#not sure why this works or why it is necessary
+path_name = ''
+raw_plot_value = 0
+normal_plot_value = 0
+rolling_plot_value = 0
+frames_to_roll_value = 0
+pre_stim_frames_value = 0
+
+def cancel_script():
+    global path_name
+    path_name = 'The script was cancelled!'
+    window.destroy()
+
+def get_values_close_window():
+    global path_name
+    path_name = path.get()
+    global raw_plot_value
+    raw_plot_value = raw_to_plot.get()
+    global normal_plot_value
+    normal_plot_value = normal_to_plot.get()
+    global rolling_plot_value
+    rolling_plot_value = rolling_to_plot.get()
+    global frames_to_roll_value
+    frames_to_roll_value = int(frames_to_roll.get())
+    global pre_stim_frames_value
+    pre_stim_frames_value = int(pre_stim_frame.get())
+    window.destroy()
+
+window = tk.Tk()
+window.title('User Inputs')
+window.geometry('600x190')
+
+#store the path and variables
+path = tk.StringVar()
+raw_to_plot = tk.IntVar()
+normal_to_plot = tk.IntVar()
+rolling_to_plot = tk.IntVar()
+frames_to_roll = tk.StringVar()
+pre_stim_frame = tk.StringVar()
+
+#Path  label and entry
+label_path =  tk.Label(text="Paste the path to the folder with your movies:").grid(row=0, column=0)
+entry_path = tk.Entry(window, textvariable=path)
+entry_path.grid(row=0, column=1)
+entry_path.focus() #focus on this box
+
+#checkboxes for what to plot
+label_to_plot = tk.Label(text="Check the data you would like to plot:").grid(row=1, column=0)
+raw_check = tk.Checkbutton(window, text = 'raw data', variable=raw_to_plot, onvalue=1, offvalue=0).grid(row=1, column=1) #assign to 1 if clicked
+normal_check = tk.Checkbutton(window, text = 'normalized data', variable=normal_to_plot, onvalue=1, offvalue=0).grid(row=2, column=1) #assign to 1 if clicked
+rolling_check = tk.Checkbutton(window, text = 'rolling data', variable=rolling_to_plot, onvalue=1, offvalue=0).grid(row=3, column=1) #assign to 1 if clicked
+
+#For how many frames to roll
+label_frames_to_roll = tk.Label(text="How many frames would you like to roll (enter '0' if none):").grid(row=4, column=0)
+entry_frames_to_roll = tk.Entry(window, textvariable=frames_to_roll)
+entry_frames_to_roll.grid(row=4, column=1)
+
+#prestim frames
+label_pre_stim_frames = tk.Label(text="How many pre-stim frames:").grid(row=5, column=0)
+entry_pre_stim_frames = tk.Entry(window, textvariable=pre_stim_frame)
+entry_pre_stim_frames.grid(row=5, column=1)
+
+cancel_button = tk.Button(text='Cancel', command=cancel_script).grid(row=6, column=0)
+enter_button = tk.Button(text='Enter', command=get_values_close_window).grid(row=6, column=1)
+
+window.mainloop()
+
+
+######################################
+###########SET VARIABLES #############
+######################################
+
+os.chdir(path_name) #path to the movies
+
+if frames_to_roll_value == 0:
+    roll_avg_frames = 1
+else:
+    roll_avg_frames = frames_to_roll_value
+
+pre_stim_frames = pre_stim_frames_value
+
+if raw_plot_value == 1 and normal_plot_value == 0 and rolling_plot_value == 0:
+    what_to_plot = 'raw'
+elif raw_plot_value == 0 and normal_plot_value == 1 and rolling_plot_value == 0:
+    what_to_plot = 'normalized'
+elif raw_plot_value == 0 and normal_plot_value == 0 and rolling_plot_value == 1:
+    what_to_plot = 'rolling_norm'
+else:
+    print('You can only select one to plot!')
 
 ######################################
 ########## PROCESSING ################
@@ -105,6 +182,11 @@ for profile in normalized: #for each intensity value in the tuple "value" of the
             break
     rolling_norm[profile] = rolling_int_profile # the tuple is added to the dictionary with the file name as the key
     
+
+######################################
+########## SAVE TO CSV ###############
+######################################
+
 ##### Below creates three csv files: raw, normailzed, and rolling normalized profiles for each movie
 with open('!raw_values.csv', 'w') as f:
     for key in raw.keys():
@@ -117,7 +199,11 @@ with open('!normalized_values.csv', 'w') as f:
 with open(f'!rolling({roll_avg_frames})_normalized_values.csv', 'w') as f:
     for key in rolling_norm.keys():
         f.write("%s,%s\n"%(key,rolling_norm[key]))
-        
+
+######################################
+########## PLOTTING ##################
+######################################
+
 ##### Below is code for plotting the intensity over time for each profile on the same graph
 def plot_profiles(dict_of_profiles):
     for movie in dict_of_profiles: #for each file in dictionary or normalized intensities
@@ -135,8 +221,11 @@ def plot_profiles(dict_of_profiles):
         x_new = np.linspace(x.min(), x.max(), 100) #max is max, min is min, data avergaed into ______ bins
         bspline = scipy.interpolate.make_interp_spline(x, y)
         y_new = bspline(x_new)
-        plt.plot(x_new, y_new, linewidth=5)
+        plt.plot(x_new, y_new, linewidth=2)
     
+plt.style.use(['dark_background'])
+plt.rcParams["figure.figsize"] = (10,6)
+
 if what_to_plot == 'raw':
     plot_profiles(raw)
     plotted = 'raw'
@@ -157,8 +246,6 @@ plt.xlabel('Frames')
 plt.ylabel(f'pixel intensity')
 plt.title('Average flourescence over time')
 plt.legend(legend_new)
-plt.rcParams["figure.figsize"] = (40,20)
-plt.style.use('dark_background')
 plt.axvline(pre_stim_frames)
 plt.text(pre_stim_frames+.1,-1,'stimulation',rotation=0)
 plt.axvline(55)
@@ -169,4 +256,5 @@ font = {'family' : 'Times New Roman',
 
 plt.rc('font', **font)
 plt.savefig(f'!intensity_profiles_{plotted}.png')
+
 plt.show()
