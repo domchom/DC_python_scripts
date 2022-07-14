@@ -1,13 +1,9 @@
 import tkinter as tk
+from tkinter import ttk
 
-window = tk.Tk()
-label = tk.Label(
-    text="Hello, User",
-    foreground="black",  # Set the text color to white
-    background="white"  # Set the background color to black
-    width=10
-    height=10)
+root = tk.Tk()
 
-label.pack()
+tk.Label(root, text='Classic Label', fg='black').pack()
+ttk.Label(root, text='Themed Label').pack()
 
-window.mainloop()
+root.mainloop()
