@@ -1,9 +1,16 @@
 import tkinter as tk
 from tkinter import ttk
 
-root = tk.Tk()
+window = tk.Tk()
 
-tk.Label(root, text='Classic Label', fg='black').pack()
-ttk.Label(root, text='Themed Label').pack()
+label =  tk.Label(text="paste the path to the folder with your movies:").pack()
 
-root.mainloop()
+entry = tk.Entry(fg="white", width=20).pack()
+
+
+window.mainloop()
+
+
+path = entry.get()
+
+print(path)
