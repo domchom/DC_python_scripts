@@ -8,7 +8,7 @@ import skimage.io as skio
 from skimage.morphology import disk, binary_erosion, binary_dilation, binary_opening, binary_closing, remove_small_objects
 from skimage.restoration import rolling_ball 
 from skimage.filters import gaussian
-from skimage.measure import labels
+from skimage.measure import label
 import tkinter as tk
 from tkinter import Tk
 from tkinter import ttk
