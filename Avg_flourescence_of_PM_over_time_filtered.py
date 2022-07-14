@@ -8,7 +8,7 @@ import skimage.io as skio
 from skimage.morphology import disk, binary_erosion, binary_dilation, binary_opening, binary_closing, remove_small_objects
 from skimage.restoration import rolling_ball 
 from skimage.filters import gaussian
-from skimage.measure import label
+from skimage.measure import labels
 import tkinter as tk
 from tkinter import Tk
 from tkinter import ttk
@@ -22,7 +22,7 @@ time). User must also prvoide the number of pre-stimulation frames.
 You can also change whether the masks for each movie are plotted and whether the raw, normalized, or rolling_norm data is plotted
 below"""
 
-os.chdir("/Users/chomchai/Desktop/Avg_flour_over_time_filtered/test_image_process_datasets") #paste the pathname for your movies of interest
+os.chdir("/Users/domchom/Desktop/Python_Learning/Projects/Avg_flour_over_time_filtered/test_image_process_datasets") #paste the pathname for your movies of interest
 roll_avg_frames = 5 #how many frames to average together (1 = just raw data data, no averaging)
 pre_stim_frames = 10
 what_to_plot =  'normalized' #either 'raw', 'normalized', or 'rolling_norm'
@@ -85,7 +85,7 @@ for profile in raw: #iterate over each movie profile and normalize to the first 
     normalized[profile] = normal_int_profile #store normalized profile in new dict
         
 ##### Below used to calculate the ROLLING NORMALIZED average intensity for each frame in each movie 
-rolling_norm = {} #dictionairy to contain the rolling normalized intensity profiles for each movie
+rolling_norm = {} #dictionary to contain the rolling normalized intensity profiles for each movie
 for profile in normalized: #for each intensity value in the tuple "value" of the dictinary
     rolling_int_profile = ()
     i = 0
@@ -168,5 +168,5 @@ font = {'family' : 'Times New Roman',
         'size'   : 40}
 
 plt.rc('font', **font)
-plt.savefig(f'intensity_profiles_{plotted}.png')
+plt.savefig(f'!intensity_profiles_{plotted}.png')
 plt.show()
