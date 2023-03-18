@@ -6,9 +6,9 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from wound_processing_mods.napari_wound_processing import EllipseCreation
-from wound_processing_mods.processor_wound_processing import ImageProcessor
-from wound_processing_mods.gui_wound_processing import BaseGUI
+from wound_analysis_mods.napari_wound_analysis import EllipseCreation
+from wound_analysis_mods.processor_wound_analysis import ImageProcessor
+from wound_analysis_mods.gui_wound_analysis import BaseGUI
 
 #set the behavior for two types of errors: divide-by-zero and invalid arithmetic operations 
 np.seterr(divide='ignore', invalid='ignore') 

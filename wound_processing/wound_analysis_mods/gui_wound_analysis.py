@@ -54,7 +54,7 @@ class BaseGUI(tk.Tk):
         self.file_path_button = ttk.Button(self, text = 'Select folder')
 
         # make a default path
-        self.folder_path.set('/Users/domchom/Documents/GitHub/Dom_python_scripts/wound_processing/example_movies')
+        self.folder_path.set('/Users/domchom/Desktop/example_movies')
         self.file_path_button['command'] = self.get_folder_path
         self.file_path_button.grid(row = 0, column = 1, padx = 10, sticky = 'W')        
 

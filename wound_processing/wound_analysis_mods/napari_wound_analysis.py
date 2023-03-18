@@ -96,7 +96,7 @@ class EllipseCreation:
             ratio = abs(y2 - y1) / abs(x2 - x1)
 
             # Define the two ellipses
-            small_ellipse_width = 20
+            small_ellipse_width = 1
             small_ellipse_height = small_ellipse_width * ratio
             large_ellipse_width = self.line_length * 2 + small_ellipse_width
             large_ellipse_height = self.line_length * 2 + small_ellipse_height

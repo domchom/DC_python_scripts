@@ -4,6 +4,7 @@ import scipy
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+import scipy.ndimage as nd
 import imageio.v2 as imageio
 import matplotlib.pyplot as plt
 
@@ -24,10 +25,10 @@ class ImageProcessor:
         self.num_frames = len(img)  
         self.num_lines = len(line_coords)
         self.bin_num = len(line_coords[0][0])
-        self.pixels_per_bin = self.line_length / self.bin_num
-        self.bin_length_pixels = self.pixels_per_bin * self.pixel_size
-
-        self.indv_line_values = self.calc_indv_line_values()
+        self.bin_length_pixels = (self.line_length / self.bin_num) * self.pixel_size
+        self.line_length_pixels = self.bin_length_pixels * self.bin_num
+                
+        self.indv_line_values, self.x_values = self.calc_indv_line_values()
 
     def calc_indv_line_values(self):
         """
@@ -58,9 +59,16 @@ class ImageProcessor:
                     signal = scipy.signal.savgol_filter(signal, window_length=11, polyorder=3)
 
                     # Reshape the signal array and store it in the output array
-                    self.indv_line_values[channel, frame, :, ::-1] = signal.reshape((self.num_lines, self.bin_num)) #reversed to make the center of the wound "0"
+                    signal = signal.reshape((self.num_lines, self.bin_num)) # reversed to make the center of the wound "0"
+                    self.indv_line_values[channel, frame, :, ::-1] = signal
 
-        return self.indv_line_values
+                    # calculating the x values of line in microns for calculations later
+                    self.x_values = np.arange(len(signal[0]))
+                    self.x_values = self.x_values * self.bin_length_pixels
+                    
+                    
+
+        return self.indv_line_values, self.x_values
 
     ###################################
     ######### INDV LINE MEAS ##########
@@ -193,7 +201,7 @@ class ImageProcessor:
                     signal2 = self.indv_line_values[combo[1],
                                                     frame_num, line_num]
 
-                    delay_frames, cc_curve = self.calc_shifts(signal1, signal2)
+                    delay_frames, cc_curve = self.calc_shifts(signal1, signal2, prominence=0.1)
 
                     self.indv_shifts[combo_number, frame_num,
                                      line_num] = delay_frames
@@ -202,7 +210,7 @@ class ImageProcessor:
 
         return self.indv_shifts, self.indv_ccfs, self.channel_combos
 
-    def calc_shifts(self, signal1, signal2):
+    def calc_shifts(self, signal1, signal2, prominence):
         """
         Calculate the delay between two 1D signals based on their cross-correlation.
 
@@ -251,7 +259,7 @@ class ImageProcessor:
                 (self.bin_num * signal1.std() * signal2.std())
             # find peaks
             peaks, _ = scipy.signal.find_peaks(
-                cc_curve, prominence=0.01)
+                cc_curve, prominence=prominence)
             # absolute difference between each peak and zero
             peaks_abs = abs(peaks - cc_curve.shape[0] // 2)
             # if peaks were identified, pick the one closest to the center
@@ -259,7 +267,7 @@ class ImageProcessor:
                 delay = np.argmin(peaks_abs[np.nonzero(peaks_abs)])
                 delayIndex = peaks[delay]
                 delay_frames = delayIndex - cc_curve.shape[0] // 2
-                delay_frames = -delay_frames # negative because values were flipped before so that the wound center wound be considered 0
+                delay_frames = delay_frames # negative because values were flipped before so that the wound center wound be considered 0
             # otherwise, return NaNs for both period and autocorrelation curve
             else:
                 delay_frames = np.nan
@@ -392,7 +400,7 @@ class ImageProcessor:
                 signal2 = self.mean_line_values_per_frame[combo[1],
                                                           frame_num]
 
-                delay_frames, cc_curve = self.calc_shifts(signal1, signal2)
+                delay_frames, cc_curve = self.calc_shifts(signal1, signal2, prominence=0.01)
 
                 self.mean_shifts[combo_number, frame_num] = delay_frames
                 self.mean_ccfs[combo_number, frame_num] = cc_curve
@@ -427,30 +435,31 @@ class ImageProcessor:
             """
             plt.style.use('dark_background')
             fig, (ax1, ax2) = plt.subplots(2, 1)
-            ax1.plot(ch1, color='tab:blue', label=ch1_name)
-            ax1.plot(ch2, color='tab:orange', label=ch2_name)
-            ax1.set_xlabel('distance (bins)')
+            ax1.plot(self.x_values, ch1, color='tab:blue', label=ch1_name)
+            ax1.plot(self.x_values, ch2, color='tab:orange', label=ch2_name)
+            ax1.set_xlabel('distance (microns)')
             ax1.set_ylabel('Mean px value')
             ax1.legend(loc='upper right', fontsize='small', ncol=1)
-            ax2.plot(np.arange(-self.bin_num + 1, self.bin_num), ccf_curve)
+            ax2.plot(np.arange(-self.bin_num + 1, self.bin_num) * self.bin_length_pixels, ccf_curve)
             ax2.set_ylabel('Crosscorrelation')
             
 
             if not shift == np.nan:
                 color = 'red'
-                ax2.axvline(x=shift, alpha=0.5, c=color, linestyle='--')
+                ax2.axvline(x=shift * self.bin_length_pixels, alpha=0.5, c=color, linestyle='--')
                 if shift < 1:
                     ax2.set_xlabel(
-                        f'{ch1_name} leads by {int(abs(shift))} bins')
+                        f'{ch1_name} leads by {int(abs(shift * self.bin_length_pixels))} microns')
                 elif shift > 1:
                     ax2.set_xlabel(
-                        f'{ch2_name} leads by {int(abs(shift))} bins')
+                        f'{ch2_name} leads by {int(abs(shift * self.bin_length_pixels))} microns')
                 else:
                     ax2.set_xlabel('no shift detected')
             else:
                 ax2.set_xlabel(f'No peaks identified')
 
             fig.subplots_adjust(hspace=0.5)
+            plt.close()
             return(fig)
 
         def normalize(signal: np.ndarray):
@@ -519,29 +528,29 @@ class ImageProcessor:
             rightIndex = prop_dict['rightIndex']
 
             fig, ax = plt.subplots()
-            ax.plot(line_signal, color='tab:gray', label='raw signal')
-            ax.plot(smoothed_signal, color='tab:cyan', label='smoothed signal')
+            ax.plot(self.x_values, line_signal, color='tab:gray', label='raw signal')
+            ax.plot(self.x_values, smoothed_signal, color='tab:cyan', label='smoothed signal')
 
             # plot all of the peak widths and amps in a loop
             for i in range(peaks.shape[0]):
                 ax.hlines(heights[i],
-                          leftIndex[i],
-                          rightIndex[i],
+                          leftIndex[i] * self.bin_length_pixels,
+                          rightIndex[i] * self.bin_length_pixels,
                           color='tab:olive',
                           linestyle='-')
-                ax.vlines(peaks[i],
+                ax.vlines(peaks[i] * self.bin_length_pixels,
                           smoothed_signal[peaks[i]]-proms[i],
                           smoothed_signal[peaks[i]],
                           color='tab:purple',
                           linestyle='-')
             # plot the first peak width and amp again so we can add it to the legend
             ax.hlines(heights[0],
-                      leftIndex[0],
-                      rightIndex[0],
+                      leftIndex[0] * self.bin_length_pixels,
+                      rightIndex[0] * self.bin_length_pixels,
                       color='tab:olive',
                       linestyle='-',
                       label='FWHM')
-            ax.vlines(peaks[0],
+            ax.vlines(peaks[0] * self.bin_length_pixels,
                       smoothed_signal[peaks[0]]-proms[0],
                       smoothed_signal[peaks[0]],
                       color='tab:purple',
@@ -549,7 +558,7 @@ class ImageProcessor:
                       label='Peak amplitude')
 
             ax.legend(loc='upper right', fontsize='small', ncol=1)
-            ax.set_xlabel('Distance (bins)')
+            ax.set_xlabel('Distance (microns)')
             ax.set_ylabel('Signal (AU)')
             ax.set_title(f'{Ch_name} peak properties')
             plt.close(fig)
@@ -624,14 +633,19 @@ class ImageProcessor:
                                  alpha=0.2)
             ax['A'].set_title(
                 f'{channel_frame_combo} Mean Crosscorrelation Curve ± Standard Deviation')
+
+            #to standardize to pixel size
+            for i in range(len(shifts_or_periods)):
+                shifts_or_periods[i] *= self.bin_length_pixels 
+            
             ax['B'].hist(shifts_or_periods)
             shifts_or_periods = [
                 val for val in shifts_or_periods if not np.isnan(val)]
-            ax['B'].set_xlabel(f'Histogram of shift values (bins)')
+            ax['B'].set_xlabel(f'Histogram of shift values (microns)')
             ax['B'].set_ylabel('Occurances')
             ax['C'].boxplot(shifts_or_periods)
             ax['C'].set_xlabel(f'Boxplot of shift values')
-            ax['C'].set_ylabel(f'Measured shift (bins)')
+            ax['C'].set_ylabel(f'Measured shift (microns)')
             fig.subplots_adjust(hspace=0.25, wspace=0.5)
             plt.close(fig)
 
@@ -710,13 +724,17 @@ class ImageProcessor:
             ax2.set_xlabel(f'{Ch_name} boxplot of peak values')
             ax2.set_ylabel('Value (AU)')
 
+            #to standardize to pixel size
+            for i in range(len(width_array)):
+                width_array[i] *= self.bin_length_pixels
+
             ax3.hist(width_array, color='dimgray', alpha=0.75)
             ax3.set_xlabel(f'{Ch_name} histogram of peak widths')
             ax3.set_ylabel('Occurances')
             bp = ax4.boxplot(width_array, vert=True, patch_artist=True)
             bp['boxes'][0].set_facecolor('dimgray')
             ax4.set_xlabel(f'{Ch_name} boxplot of peak widths')
-            ax4.set_ylabel('Peak width (bins)')
+            ax4.set_ylabel('Peak width (microns)')
             fig.subplots_adjust(hspace=0.6, wspace=0.6)
             plt.close(fig)
 
@@ -775,7 +793,7 @@ class ImageProcessor:
         plt.style.use('dark_background')
         self.fig, (ax1) = plt.subplots(1, 1)
         plt.title(f'Frame {frame + 1}: {self.frame_rate*frame} seconds')
-        ax1.set_xlabel(f'Distance from center (bins)')
+        ax1.set_xlabel(f'Distance from center (microns)')
         ax1.set_ylabel('Normalized Pixel Value')
         y_max = np.max(np.maximum(
             self.mean_line_values_per_frame[0], self.mean_line_values_per_frame[1]))
@@ -783,8 +801,8 @@ class ImageProcessor:
         signal1 = self.mean_line_values_per_frame[0][frame]
         signal2 = self.mean_line_values_per_frame[1][frame]
 
-        ax1.plot(signal1, color='cyan', label=self.Ch1)
-        ax1.plot(signal2, color='red', label=self.Ch2)
+        ax1.plot(self.x_values, signal1, color='cyan', label=self.Ch1)
+        ax1.plot(self.x_values, signal2, color='red', label=self.Ch2)
         plt.legend(loc='upper right', fontsize='small', ncol=3)
         plt.tight_layout()
 
@@ -852,7 +870,13 @@ class ImageProcessor:
             # shift measurements need special treatment to generate the correct measurements and names
             if measurement_name == 'Shift':
                 statified = []
+
+                # calculate the shift in pixels
+
                 for combo_number, combo in enumerate(self.channel_combos):
+                    # calculate the shift in pixels
+                    measurements[combo_number] = measurements[combo_number] * -self.bin_length_pixels
+
                     meas_mean = np.nanmean(measurements[combo_number])
                     meas_median = np.nanmedian(measurements[combo_number])
                     meas_std = np.nanstd(measurements[combo_number])
@@ -865,6 +889,24 @@ class ImageProcessor:
                     meas_list.insert(3, meas_sem)
                     meas_list.insert(
                         0, f'Ch{combo[0] + 1}-Ch{combo[1] + 1} {measurement_name}')
+                    statified.append(meas_list)
+
+            elif measurement_name == 'Peak Width':
+                statified = []
+                for channel in range(self.num_channels):
+                    # calculate the width in pixels
+                    measurements[channel] = measurements[channel] * self.bin_length_pixels
+
+                    meas_mean = np.nanmean(measurements[channel])
+                    meas_median = np.nanmedian(measurements[channel])
+                    meas_std = np.nanstd(measurements[channel])
+                    meas_sem = meas_std / np.sqrt(len(measurements[channel]))
+                    meas_list = list(measurements[channel])
+                    meas_list.insert(0, meas_mean)
+                    meas_list.insert(1, meas_median)
+                    meas_list.insert(2, meas_std)
+                    meas_list.insert(3, meas_sem)
+                    meas_list.insert(0, f'Ch {channel +1} {measurement_name}')
                     statified.append(meas_list)
 
             # peak measurements are just iterated by channel
@@ -930,7 +972,7 @@ class ImageProcessor:
         The summarized measurements are stored in a dictionary called 'file_data_summary'. 
         The function also calculates the percentage of shifts and peaks that have no data and 
         stores these values in the dictionary. If shifts or peaks are present, the function stores the
-         mean, median, standard deviation, and standard error of mean for each property.
+        mean, median, standard deviation, and standard error of mean for each property.
 
         Parameters: 
         (string) the name of the file to be summarized
