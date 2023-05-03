@@ -56,9 +56,9 @@ def main():
     plot_mean_CCFs = True
     plot_mean_peaks = True
     plot_mean_acfs = True
-    plot_ind_CCFs = True
-    plot_ind_peaks = True
-    plot_ind_acfs = True
+    plot_ind_CCFs = False
+    plot_ind_peaks = False
+    plot_ind_acfs = False
 
     # make dictionary of parameters for log file use
     log_params = {"Base Directory": folder_path,
