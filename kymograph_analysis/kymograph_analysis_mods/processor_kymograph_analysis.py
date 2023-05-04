@@ -6,10 +6,11 @@ import imageio.v2 as imageio
 import matplotlib.pyplot as plt
 
 class ImageProcessor:
-    def __init__(self, filename, im_save_path, img):
+    def __init__(self, filename, im_save_path, img,line_width):
         self.filename = filename
         self.im_save_path = im_save_path
         self.img = img      
+        self.line_width = line_width
         
         self.num_channels = self.img.shape[0]
         self.num_cols = self.img.shape[-1]
@@ -17,7 +18,7 @@ class ImageProcessor:
 
         self.indv_line_values = self.calc_indv_line_values()
 
-    def calc_indv_line_values(self):
+    def calc_indv_line_values(self, win_length=25):
         """
         Calculates the individual line values for each channel and column in the image data.
 
@@ -28,8 +29,18 @@ class ImageProcessor:
         
         for channel in range(self.num_channels):
             for col_num in range(self.num_cols):
-                signal = scipy.signal.savgol_filter(self.img[channel, :, col_num], window_length = 11, polyorder = 2)
-                self.indv_line_values[channel, col_num] = signal
+                if self.line_width == 1:
+                    signal = scipy.signal.savgol_filter(self.img[channel, :, col_num], window_length = win_length, polyorder = 2)
+                    self.indv_line_values[channel, col_num] = signal
+                elif self.line_width % 2 != 0:
+                    line_width_extra = int((self.line_width - 1) / 2)
+                    if col_num + line_width_extra < self.num_cols and col_num - line_width_extra > -1:
+                        # print(f'col: {col_num}')
+                        # print(f'minus: {col_num - line_width_extra}')
+                        signal = np.mean(self.img[channel, :, col_num-line_width_extra:col_num+line_width_extra], axis=1)
+                        signal = scipy.signal.savgol_filter(signal, window_length = win_length, polyorder=2)
+                        self.indv_line_values[channel, col_num] = signal
+
                     
         return self.indv_line_values
 
@@ -234,7 +245,6 @@ class ImageProcessor:
                 delay = np.argmin(peaks_abs[np.nonzero(peaks_abs)])
                 delayIndex = peaks[delay]
                 delay_frames = delayIndex - cc_curve.shape[0] // 2
-                delay_frames = -delay_frames # negative because values were flipped before so that the wound center wound be considered 0
             # otherwise, return NaNs for both period and autocorrelation curve
             else:
                 delay_frames = np.nan
@@ -449,7 +459,7 @@ class ImageProcessor:
             with tqdm(total=its, miniters=its/100) as pbar:
                 pbar.set_description('ind ccfs')
                 for combo_number, combo in enumerate(self.channel_combos):
-                    for line in range(self.num_rows):
+                    for line in range(self.num_cols):
                         pbar.update(1)
                         self.ind_ccf_plots[f'Ch{combo[0]}-Ch{combo[1]} Line {line + 1} CCF'] = return_figure(ch1 = normalize(self.indv_line_values[combo[0], line, :]),
                                                                                                         ch2 = normalize(self.indv_line_values[combo[1], line, :]),

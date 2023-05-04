@@ -1,6 +1,7 @@
 import os
-import pathlib
+import sys
 import timeit
+import pathlib
 import datetime
 import tifffile
 import numpy as np
@@ -44,21 +45,34 @@ def convert_images(directory):
 
 ####################################################################################################################################
 ####################################################################################################################################
-####################################################################################################################################
-####################################################################################################################################
-####################################################################################################################################
-####################################################################################################################################
-####################################################################################################################################
-####################################################################################################################################
 
 def main():
-    folder_path = '/Users/domchom/Desktop/kymographs'
+    folder_path = '/Users/domchom/Desktop/kymograph_analysis_testing'
     plot_mean_CCFs = True
     plot_mean_peaks = True
     plot_mean_acfs = True
-    plot_ind_CCFs = False
+    plot_ind_CCFs = True
     plot_ind_peaks = False
     plot_ind_acfs = False
+    line_width = 3
+
+    # Error Catching
+    errors = []
+
+    if line_width == '':
+        line_width = 1
+    try:
+        line_width = int(line_width)
+        if line_width % 2 == 0:
+            raise ValueError("Line width must be odd")
+    except ValueError:
+        errors.append("Line width must be an odd number")
+
+    if len(errors) >= 1:
+        print("Error Log:")
+        for count, error in enumerate(errors):
+            print(count, ":", error)
+        sys.exit("Please fix errors and try again.")
 
     # make dictionary of parameters for log file use
     log_params = {"Base Directory": folder_path,
@@ -68,6 +82,7 @@ def main():
                 "Plot Individual CCF": plot_mean_acfs,
                 "Plot Individual CCFs": plot_ind_CCFs,
                 "Plot Individual Peaks": plot_ind_peaks,  
+                "Line width": line_width,
                 "Files Processed": [],
                 "Files Not Processed": [],
                 'Plotting errors': []
@@ -156,7 +171,9 @@ def main():
             # Initialize the processor
             processor = ImageProcessor(filename=file_name, 
                                     im_save_path=im_save_path,
-                                    img=all_images[file_name])
+                                    img=all_images[file_name],
+                                    line_width=line_width
+                                    )
 
             # if file is not skipped, log it and continue
             log_params['Files Processed'].append(f'{file_name}')
