@@ -35,8 +35,6 @@ class ImageProcessor:
                 elif self.line_width % 2 != 0:
                     line_width_extra = int((self.line_width - 1) / 2)
                     if col_num + line_width_extra < self.num_cols and col_num - line_width_extra > -1:
-                        # print(f'col: {col_num}')
-                        # print(f'minus: {col_num - line_width_extra}')
                         signal = np.mean(self.img[channel, :, col_num-line_width_extra:col_num+line_width_extra], axis=1)
                         signal = scipy.signal.savgol_filter(signal, window_length = win_length, polyorder=2)
                         self.indv_line_values[channel, col_num] = signal
@@ -192,6 +190,14 @@ class ImageProcessor:
                 signal2 = self.indv_line_values[combo[1], line_num]
 
                 delay_frames, cc_curve = self.calc_shifts(signal1, signal2, prominence=0.1)
+
+                # The script has issues when the shift is very small or none, so minus the average period from the two channels
+                period = (self.periods[combo[0],line_num] + self.periods[combo[1],line_num]) / 2
+                if abs(delay_frames) > abs(period * .5):
+                    if delay_frames < 0:
+                        delay_frames = delay_frames + period
+                    elif delay_frames > 0:
+                        delay_frames = delay_frames - period
 
                 self.indv_shifts[combo_number, line_num] = delay_frames
                 self.indv_ccfs[combo_number, line_num] = cc_curve

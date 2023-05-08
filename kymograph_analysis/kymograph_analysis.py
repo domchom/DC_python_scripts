@@ -54,7 +54,7 @@ def main():
     plot_ind_CCFs = True
     plot_ind_peaks = False
     plot_ind_acfs = False
-    line_width = 3
+    line_width = 1
 
     # Error Catching
     errors = []
