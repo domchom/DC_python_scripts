@@ -19,6 +19,15 @@ np.seterr(divide='ignore', invalid='ignore')
 plt.rcParams['figure.max_open_warning'] = 0
 
 def convert_images(directory):
+    """
+    Convert all TIF files in the specified directory to standardized numpy arrays.
+
+    Args:
+        directory (str or pathlib.Path): The path to the directory containing the TIF files.
+
+    Returns:
+        dict: A dictionary where the keys are the file names and the values are the numpy arrays of the images.
+    """
     input_path = pathlib.Path(directory)
     images = {}
 
@@ -49,8 +58,7 @@ def save_plot(plot, plot_name, plot_dir):
     """
     Saves a Matplotlib plot to a PNG file with the given name in the specified directory.
 
-    Parameters:
-    -----------
+    Args:
     - plot (matplotlib.pyplot.plot): The plot to be saved.
     - plot_name (str): The name to give to the saved plot.
     - plot_dir (str): A string representing the path to the directory where the plot should be saved. If the directory
@@ -64,8 +72,7 @@ def save_plots(plots, plot_dir):
     """
     Saves a dictionary of Matplotlib plots to PNG files in the specified directory using multiprocessing.
 
-    Parameters:
-    -----------
+    Args:
     - plots (dict): A dictionary of Matplotlib plots, where the keys are the names of the plots and the values
                     are the actual plot objects.
     - plot_dir (str): A string representing the path to the directory where the plots should be saved. If the directory
@@ -91,9 +98,9 @@ def main():
     plot_mean_CCFs = True
     plot_mean_peaks = True
     plot_mean_acfs = True
-    plot_ind_CCFs = True
-    plot_ind_peaks = True
-    plot_ind_acfs = True
+    plot_ind_CCFs = False
+    plot_ind_peaks = False
+    plot_ind_acfs = False
     line_width = 1
     group_names = ['']
 
@@ -131,7 +138,6 @@ def main():
                 "Group Matching Errors" : []
                 }
         
-    ''' ** housekeeping functions ** '''
     def make_log(directory, logParams):
         """
         Creates a log file in the specified directory with the given parameters.
@@ -167,8 +173,6 @@ def main():
         fig = ax.get_figure()
         return fig
 
-    ''' ** error catching for group names ** '''
-
     file_names = [fname for fname in os.listdir(folder_path) if fname.endswith('.tif') and not fname.startswith('.')]
 
     # list of groups that matched to file names
@@ -199,7 +203,6 @@ def main():
             "\n****** ERROR ******")
         sys.exit()
 
-    ''' ** Main Workflow ** '''
     # performance tracker
     start = timeit.default_timer()
 
@@ -286,16 +289,19 @@ def main():
                 save_plots(plots=ind_acfs_plots, plot_dir=os.path.join(im_save_path, 'Individual_ACF_plots'))
 
             if plot_mean_CCFs:
-                mean_ccf_plots = processor.plot_mean_CCF()
-                save_plots(plots=mean_ccf_plots, plot_dir=os.path.join(im_save_path, 'Mean_CCF_plots'))
+                summ_ccf_plots = processor.plot_mean_CCF()
+                for plot_name, plot in summ_ccf_plots.items():
+                    plot.savefig(f'{im_save_path}/{plot_name}.png')
 
             if plot_mean_peaks:
-                mean_peak_plots = processor.plot_mean_peak_props()
-                save_plots(plots=mean_peak_plots, plot_dir=os.path.join(im_save_path, 'Mean_peak_plots'))
+                summ_peak_plots = processor.plot_mean_peak_props()
+                for plot_name, plot in summ_peak_plots.items():
+                    plot.savefig(f'{im_save_path}/{plot_name}.png')
 
             if plot_mean_acfs:
-                mean_acfs_plots = processor.plot_mean_ACF()
-                save_plots(plots=mean_acfs_plots, plot_dir=os.path.join(im_save_path, 'Mean_ACF_plots'))
+                summ_acf_plots = processor.plot_mean_ACF()
+                for plot_name, plot in summ_acf_plots.items():
+                    plot.savefig(f'{im_save_path}/{plot_name}.png')
 
             # Summarize the data for current image as dataframe, and save as .csv
             im_measurements_df = processor.organize_measurements()
