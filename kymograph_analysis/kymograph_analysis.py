@@ -4,6 +4,7 @@ import timeit
 import pathlib
 import datetime
 import tifffile
+import seaborn as sns
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -52,9 +53,10 @@ def main():
     plot_mean_peaks = True
     plot_mean_acfs = True
     plot_ind_CCFs = True
-    plot_ind_peaks = False
-    plot_ind_acfs = False
+    plot_ind_peaks = True
+    plot_ind_acfs = True
     line_width = 1
+    group_names = ['']
 
     # Error Catching
     errors = []
@@ -83,9 +85,11 @@ def main():
                 "Plot Individual CCFs": plot_ind_CCFs,
                 "Plot Individual Peaks": plot_ind_peaks,  
                 "Line width": line_width,
+                "Group Names" : group_names,
                 "Files Processed": [],
                 "Files Not Processed": [],
-                'Plotting errors': []
+                'Plotting errors': [],
+                "Group Matching Errors" : []
                 }
         
     ''' ** housekeeping functions ** '''
@@ -128,8 +132,49 @@ def main():
         for plot_name, plot in plots.items():
             plot.savefig(f'{plot_dir}/{plot_name}.png')
 
-    file_names = [fname for fname in os.listdir(
-        folder_path) if fname.endswith('.tif') and not fname.startswith('.')]
+    def plotComparisons(dataFrame: pd.DataFrame, dependent: str, independent = 'Group Name'):
+        '''
+        This func accepts a dataframe, the name of a dependent variable, and the name of an
+        independent variable (by default, set to Group Name). It returns a figure object showing
+        a box and scatter plot of the dependent variable grouped by the independent variable.
+        '''
+        ax = sns.boxplot(x=independent, y=dependent, data=dataFrame, palette = "Set2", showfliers = False)
+        ax = sns.swarmplot(x=independent, y=dependent, data=dataFrame, color=".25")	
+        ax.set_xticklabels(ax.get_xticklabels(),rotation=45)
+        fig = ax.get_figure()
+        return fig
+
+    ''' ** error catching for group names ** '''
+
+    file_names = [fname for fname in os.listdir(folder_path) if fname.endswith('.tif') and not fname.startswith('.')]
+
+    # list of groups that matched to file names
+    groups_found = np.unique([group for group in group_names for file in file_names if group in file]).tolist()
+
+    # dictionary of file names and their corresponding group names
+    uniqueDic = {file : [group for group in group_names if group in file] for file in file_names}
+
+    for file_name, matching_groups in uniqueDic.items():
+        # if a file doesn't have a group name, log it but still run the script
+        if len(matching_groups) == 0:
+            log_params["Group Matching Errors"].append(f'{file_name} was not matched to a group')
+
+        # if a file has multiple groups names, raise error and exit the script
+        elif len(matching_groups) > 1:
+            print('****** ERROR ******',
+                f'\n{file_name} matched to multiple groups: {matching_groups}',
+                '\nPlease fix errors and try again.',
+                '\n****** ERROR ******')
+            sys.exit()
+
+    # if a group was specified but not matched to a file name, raise error and exit the script
+    if len(groups_found) != len(group_names):
+        print("****** ERROR ******",
+            "\nOne or more groups were not matched to file names",
+            f"\nGroups specified: {group_names}",
+            f"\nGroups found: {groups_found}",
+            "\n****** ERROR ******")
+        sys.exit()
 
     ''' ** Main Workflow ** '''
     # performance tracker
@@ -168,12 +213,30 @@ def main():
             if not os.path.exists(im_save_path):
                 os.makedirs(im_save_path)
 
-            # Initialize the processor
             processor = ImageProcessor(filename=file_name, 
-                                    im_save_path=im_save_path,
-                                    img=all_images[file_name],
-                                    line_width=line_width
-                                    )
+                        im_save_path=im_save_path,
+                        img=all_images[file_name],
+                        line_width=line_width
+                        )
+        
+            # log error and skip image if frames < 2 
+            if processor.num_cols < 2:
+                print(f"****** ERROR ******",
+                    f"\n{file_name} has less than 2 frames",
+                    "\n****** ERROR ******")
+                log_params['Files Not Processed'].append(f'{file_name} has less than 2 frames')
+                continue
+
+            # if file is not skipped, log it and continue
+            log_params['Files Processed'].append(f'{file_name}')
+            
+            # if user entered group name(s) into GUI, match the group for this file. If no match, keep set to None
+            group_name = None
+            if group_names != ['']:
+                try:
+                    group_name = [group for group in group_names if group in name_wo_ext][0]
+                except IndexError:
+                    pass
 
             # if file is not skipped, log it and continue
             log_params['Files Processed'].append(f'{file_name}')
@@ -211,12 +274,10 @@ def main():
 
             # Summarize the data for current image as dataframe, and save as .csv
             im_measurements_df = processor.organize_measurements()
-            im_measurements_df.to_csv(
-                f'{im_save_path}/{name_wo_ext}_measurements.csv', index=False)
+            im_measurements_df.to_csv(f'{im_save_path}/{name_wo_ext}_measurements.csv', index=False)
 
             # generate summary data for current image
-            im_summary_dict = processor.summarize_image(
-                file_name=file_name)
+            im_summary_dict = processor.summarize_image(file_name = file_name, group_name = group_name)
 
             # populate column headers list with keys from the measurements dictionary
             for key in im_summary_dict.keys():
@@ -236,7 +297,55 @@ def main():
     
         # create dataframe from summary list
         summary_df = pd.DataFrame(summary_list, columns=col_headers)
+
+        # Get column names for all channels
+        channel_cols = [col for col in summary_df.columns if 'Ch' in col and 'Mean Peak Rel Amp' in col]
+        # save the summary csv file
+        summary_df = summary_df.sort_values('File Name', ascending=True)
+
+        # Normalize mean peak relative amplitude for each channel
+        for col in channel_cols:
+            channel_mean_rel_amp = summary_df[col]
+            norm_mean_rel_amp = channel_mean_rel_amp / channel_mean_rel_amp.min()
+            norm_col_name = col.replace('Mean Peak Rel Amp', 'Norm Mean Rel Amp')
+            summary_df[norm_col_name] = norm_mean_rel_amp
+
         summary_df.to_csv(f'{main_save_path}/summary.csv', index=False)
+
+        # if group names were entered into the gui, generate comparisons between each group
+        if group_names != ['']:
+            print('Generating group comparisons...')
+            # make a group comparisons save path in the main save directory
+            group_save_path = os.path.join(main_save_path, "0_groupComparisons")
+            if not os.path.exists(group_save_path):
+                os.makedirs(group_save_path)
+            
+            # make a list of parameters to compare
+            stats_to_compare = ['Mean']
+            channels_to_compare = [f'Ch {i+1}' for i in range(processor.num_channels)]
+            measurements_to_compare = ['Period', 'Shift', 'Peak Width', 'Peak Max', 'Peak Min', 'Peak Amp', 'Peak Rel Amp']
+            params_to_compare = []
+            for channel in channels_to_compare:
+                for stat in stats_to_compare:
+                    for measurement in measurements_to_compare:
+                        params_to_compare.append(f'{channel} {stat} {measurement}')
+
+            # will compare the shifts if multichannel movie
+            if hasattr(processor, 'channel_combos'):
+                shifts_to_compare = [f'Ch{combo[0]+1}-Ch{combo[1]+1} Mean Shift' for combo in processor.channel_combos]
+                params_to_compare.extend(shifts_to_compare)
+
+            # generate and save figures for each parameter
+            for param in params_to_compare:
+                try:
+                    fig = plotComparisons(summary_df, param)
+                    fig.savefig(f'{group_save_path}/{param}.png')
+                    plt.close(fig)
+                except ValueError:
+                    log_params['Plotting errors'].append(f'No data to compare for {param}')
+
+            # save the means for the attributes to make them easier to work with in prism
+            processor.save_means_to_csv(main_save_path, group_names, summary_df)
 
         end = timeit.default_timer()
         log_params["Time Elapsed"] = f"{end - start:.2f} seconds"
