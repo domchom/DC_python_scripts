@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from tqdm import tqdm
-import multiprocessing
 import matplotlib.pyplot as plt
 from kymograph_analysis_mods.processor_kymograph_analysis import ImageProcessor
 
@@ -54,42 +53,6 @@ def convert_images(directory):
 
     return images   
 
-def save_plot(plot, plot_name, plot_dir):
-    """
-    Saves a Matplotlib plot to a PNG file with the given name in the specified directory.
-
-    Args:
-    - plot (matplotlib.pyplot.plot): The plot to be saved.
-    - plot_name (str): The name to give to the saved plot.
-    - plot_dir (str): A string representing the path to the directory where the plot should be saved. If the directory
-                    doesn't exist, it will be created.
-    """
-    if not os.path.exists(plot_dir):
-        os.makedirs(plot_dir)
-    plot.savefig(f'{plot_dir}/{plot_name}.png')
-
-def save_plots(plots, plot_dir):
-    """
-    Saves a dictionary of Matplotlib plots to PNG files in the specified directory using multiprocessing.
-
-    Args:
-    - plots (dict): A dictionary of Matplotlib plots, where the keys are the names of the plots and the values
-                    are the actual plot objects.
-    - plot_dir (str): A string representing the path to the directory where the plots should be saved. If the directory
-                    doesn't exist, it will be created.
-    """
-    # Create a multiprocessing Pool with as many processes as there are CPUs
-    pool = multiprocessing.Pool()
-
-    # Iterate over the plot dictionary and add each plot and its name to a list of arguments to pass to the function
-    args_list = [(plot, plot_name, plot_dir) for plot_name, plot in plots.items()]
-
-    # Use the multiprocessing Pool to run the save_plot function in parallel for all the plots
-    pool.starmap(save_plot, args_list)
-
-    # Close the multiprocessing Pool to free up resources
-    pool.close()
-
 ####################################################################################################################################
 ####################################################################################################################################
 
@@ -99,10 +62,10 @@ def main():
     plot_mean_peaks = True
     plot_mean_acfs = True
     plot_ind_CCFs = True
-    plot_ind_peaks = True
-    plot_ind_acfs = True
+    plot_ind_peaks = False
+    plot_ind_acfs = False
     fast_process = False
-    line_width = 1
+    line_width = 5
     group_names = ['']
 
     # Error Catching
@@ -279,17 +242,17 @@ def main():
             if fast_process:
                 if plot_ind_peaks:
                     ind_peak_plots = processor.plot_ind_peak_props()
-                    save_plots(plots=ind_peak_plots, plot_dir=os.path.join(im_save_path, 'Individual_peak_plots'))
+                    processor.save_plots(plots=ind_peak_plots, plot_dir=os.path.join(im_save_path, 'Individual_peak_plots'))
 
                 if plot_ind_CCFs:
                     if processor.num_channels == 1:
                             log_params['Miscellaneous'] = f'CCF plots were not generated for {file_name} because the image only has one channel'
                     ind_ccf_plots = processor.plot_ind_ccfs()
-                    save_plots(plots=ind_ccf_plots, plot_dir=os.path.join(im_save_path, 'Individual_CCF_plots'))
+                    processor.save_plots(plots=ind_ccf_plots, plot_dir=os.path.join(im_save_path, 'Individual_CCF_plots'))
 
                 if plot_ind_acfs:
                     ind_acfs_plots = processor.plot_ind_acfs()
-                    save_plots(plots=ind_acfs_plots, plot_dir=os.path.join(im_save_path, 'Individual_ACF_plots'))
+                    processor.save_plots(plots=ind_acfs_plots, plot_dir=os.path.join(im_save_path, 'Individual_ACF_plots'))
             
             else:
                 if plot_ind_peaks:
@@ -412,7 +375,9 @@ def main():
         log_params["Time Elapsed"] = f"{end - start:.2f} seconds"
         # log parameters and errors
         make_log(main_save_path, log_params)
-        print('Done with Script!')
+        
 
 if __name__ == '__main__':
     main()
+
+print('Done with Script!')
