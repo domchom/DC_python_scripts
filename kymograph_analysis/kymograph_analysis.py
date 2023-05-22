@@ -10,6 +10,7 @@ import seaborn as sns
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from kymograph_analysis_mods.processor_kymograph_analysis import ImageProcessor
+from kymograph_analysis_mods.customgui_kymograph_analysis import BaseGUI
 
 # set the behavior for two types of errors: divide-by-zero and invalid arithmetic operations 
 np.seterr(divide='ignore', invalid='ignore') 
@@ -57,16 +58,19 @@ def convert_images(directory):
 ####################################################################################################################################
 
 def main():
+    # make GUI object and display the window
+    gui = BaseGUI()
+    gui.mainloop()
     folder_path = '/Users/domchom/Desktop/136DCE_138DCE_analysis'
-    plot_mean_CCFs = True
-    plot_mean_peaks = True
-    plot_mean_acfs = True
-    plot_ind_CCFs = True
-    plot_ind_peaks = False
-    plot_ind_acfs = False
-    fast_process = False
-    line_width = 5
-    group_names = ['']
+    plot_mean_CCFs = gui.plot_summary_CCFs
+    plot_mean_peaks = gui.plot_summary_peaks
+    plot_mean_acfs = gui.plot_summary_ACFs
+    plot_ind_CCFs = gui.plot_ind_CCFs
+    plot_ind_peaks = gui.plot_ind_peaks
+    plot_ind_acfs = gui.plot_ind_ACFs
+    fast_process = gui.fast_process
+    line_width = gui.line_width
+    group_names = gui.group_names
 
     # Error Catching
     errors = []
